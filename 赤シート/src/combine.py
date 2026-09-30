@@ -4,14 +4,9 @@ usage: python3 combine.py <out.pdf>
 import importlib, re, subprocess, sys, os, json
 
 RED = "#ff3300"
-PARTS = [
-    ("undouki1", "運動器part1"), ("undouki2", "運動器part2"), ("undouki3", "運動器part3"), ("undouki4", "運動器part4"),
-    ("kokyu1", "呼吸器part1"), ("kokyu2", "呼吸器part2"),
-    ("junkan1", "循環器part1"), ("junkan2", "循環器part2"), ("junkan3", "循環器part3"), ("junkan4", "循環器part4"),
-    ("blood1", "血液part1"), ("blood2", "血液part2"),
-    ("lymph1", "リンパ・免疫part1"), ("lymph2", "リンパ・免疫part2"), ("lymph3", "リンパ・免疫part3"),
-    ("shoka1", "消化器part1"), ("shoka2", "消化器part2"),
-]
+_course = importlib.import_module(os.environ.get("COURSE", "course1"))
+PARTS = _course.PARTS
+CTITLE = _course.TITLE
 out_pdf = sys.argv[1]
 
 
@@ -64,11 +59,11 @@ total_q = sum(x[3] for x in summary)
 total_s = sum(x[2] for x in summary)
 
 page = f"""<!doctype html><html lang="ja"><head><meta charset="utf-8">
-<title>解剖生理学Ⅰ 赤シート一問一答</title>
+<title>{CTITLE} 赤シート一問一答</title>
 <style>
 @page {{ size: A4; margin: 11mm 10mm 13mm 10mm;
   @bottom-center {{ content: counter(page) " / " counter(pages); font-size: 8pt; color: #555; }}
-  @top-right {{ content: "解剖生理学Ⅰ　赤シート一問一答"; font-size: 7pt; color: #777; }} }}
+  @top-right {{ content: "{CTITLE}　赤シート一問一答"; font-size: 7pt; color: #777; }} }}
 @page :first {{ @top-right {{ content: none; }} }}
 * {{ box-sizing: border-box; }}
 body {{ margin: 0; font-family: "IPAPGothic", "IPAGothic", sans-serif; font-size: 9.4pt;
@@ -96,7 +91,7 @@ td.ck {{ text-align: center; font-size: 7.5pt; line-height: 1.35; color: #777; p
 .r {{ color: {RED}; font-weight: bold; }}
 .note {{ font-size: 7.6pt; color: #555; }}
 </style></head><body>
-<h1>解剖生理学Ⅰ　赤シート一問一答</h1>
+<h1>{CTITLE}　赤シート一問一答</h1>
 <div class="meta">
 全{len(PARTS)}パート（スライド{total_s}枚）　全{total_q}問<br>
 使い方：<span class="r">赤い文字</span>（答えと見出し）を赤シートで隠して答える。正解したら右の□に✓（3回分）。<br>
