@@ -32,7 +32,7 @@ def img(m):
     p = m.group(1)
     name = os.path.basename(p)
     files["img/" + name] = p
-    return f"src='img/{name}'"
+    return f"loading='lazy' src='img/{name}'"
 body = []
 for k, (m, sec) in enumerate(zip(done, sections)):
     sec = re.sub(r"src='file://([^']+)'", img, sec)
@@ -88,20 +88,34 @@ section.part {{ margin-top: 28px; }}
 .hide .r:not(.show) rt {{ visibility: hidden; }}
 .hide .r.show {{ background: transparent; }}
 .hide .r.show, .hide .r.show rt {{ color: var(--red); }}
+/* スマホでも「問題＝左、答え・解説＝右」のまま。文字と余白を少し詰める */
 @media (max-width: 640px) {{
-  table.ta, table.ta > tbody, table.ta > tbody > tr, table.ta > tbody > tr > td {{ display: block; width: auto; }}
-  table.ta > colgroup {{ display: none; }}
-  table.ta > tbody > tr {{ border-bottom: 1px dotted var(--rule); padding-block: 4px; }}
-  table.ta > tbody > tr > td {{ border: none; padding: 4px 6px; }}
-  table.ta > tbody > tr > td.no {{ text-align: left; }}
-  table.ta > tbody > tr > td.no br {{ display: none; }}
-  table.ta > tbody > tr > td.a {{ border-left: 3px solid #333333; }}
+  .wrap {{ padding-inline: 10px; }}
+  table.ta {{ font-size: 12px; line-height: 1.55; }}
+  table.ta col.no {{ width: 30px; }}
+  table.ta col.a {{ width: 48%; }}
+  table.ta > tbody > tr > td {{ padding: 5px 4px; }}
+  table.ta > tbody > tr > td.no {{ font-size: 11px; }}
+  td.no .ck {{ font-size: 8px; letter-spacing: -1px; }}
+  .st {{ font-size: 9px; letter-spacing: -1.5px; }}
+  .imp {{ font-size: 8px; padding: 0 2px; }}
+  .blank {{ min-width: 2.2em; font-size: 11px; padding: 0 1px; margin: 0 1px; }}
+  .expl {{ font-size: 10.5px; }}
+  .expl table {{ font-size: 9.5px; }}
+  .sfc {{ font-size: 9px; }}
 }}
+/* 図をタップすると大きく表示 */
+.sf img {{ cursor: zoom-in; }}
+.zoom {{ position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,0.82); display: flex; align-items: center; justify-content: center;
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px)); cursor: zoom-out; }}
+.zoom img {{ max-width: 100%; max-height: 100%; background: #ffffff; }}
+.zoom[hidden] {{ display: none; }}
 @media print {{
   .bar button, ol.toc, .lead .web {{ display: none; }}
   .bar {{ position: static; border: none; }}
   .wrap {{ max-width: none; padding: 0; }}
   .hide .r {{ background: transparent; }}
+  .zoom {{ display: none; }}
 }}
 </style>
 <div class="wrap" id="top">
@@ -109,11 +123,12 @@ section.part {{ margin-top: 28px; }}
 <div class="lead">
 <p>文中の空欄（①②…）に入る語を答え、右側の<span class="r">赤い文字</span>を赤シートで隠して使います。{star}。</p>
 <p>{getattr(course, "BASIS", "")}公開済み {len(done)}/{len(course.PARTS)}パート・{total}問。</p>
-<p class="web">スマホで見るときは「赤シートモード」で赤字を隠せます（隠れた語をタップするとその語だけ表示）。印刷はチャットで送ったPDFを使うと、A4できれいに印刷できます（必ずカラー印刷）。</p>
+<p class="web">スマホで見るときは「赤シートモード」で赤字を隠せます（隠れた語をタップするとその語だけ表示）。図はタップすると大きく表示されます。印刷はチャットで送ったPDFを使うと、A4できれいに印刷できます（必ずカラー印刷）。</p>
 </div>
 <ol class="toc">{''.join(rows)}</ol>
 {''.join(body)}
 </div>
+<div class="zoom" id="zoom" hidden><img alt="拡大した図"></div>
 <script>
 (function () {{
   var root = document.querySelector('.wrap'), btn = document.getElementById('sheet');
@@ -123,10 +138,15 @@ section.part {{ margin-top: 28px; }}
     var on = !root.classList.contains('hide'); set(on);
     try {{ localStorage.setItem('sheet', on ? '1' : '0'); }} catch (e) {{}}
   }});
+  var zoom = document.getElementById('zoom'), zimg = zoom.querySelector('img');
   root.addEventListener('click', function (e) {{
+    var im = e.target.closest('.sf img');
+    if (im) {{ zimg.src = im.src; zoom.hidden = false; return; }}
     var r = e.target.closest('.r');
     if (r && root.classList.contains('hide')) r.classList.toggle('show');
   }});
+  zoom.addEventListener('click', function () {{ zoom.hidden = true; zimg.removeAttribute('src'); }});
+  document.addEventListener('keydown', function (e) {{ if (e.key === 'Escape') zoom.hidden = true; }});
 }})();
 </script>
 """
@@ -136,12 +156,14 @@ json.dump(files, open(os.path.join(PUB, "files.json"), "w"), ensure_ascii=False,
 size = len(page.encode()) + sum(os.path.getsize(p) for p in files.values())
 print(f"page: {os.path.join(PUB, 'index.html')}  images: {len(files)}  total {size/1e6:.1f}MB")
 
-# 4) パートごとの印刷用PDF
+# 4) パートごとのPDF（A4印刷用・iPad用）
 for i, (m, name) in enumerate(course.PARTS, 1):
     if m not in done:
         continue
-    fn = os.path.join(OUT, f"{course.TITLE}_{i:02d}_{re.sub(r'[ 　/]', '', name)}_一問一答.pdf")
-    if os.path.exists(fn) and os.path.getmtime(fn) > os.path.getmtime(os.path.join(HERE, f"a_{m}.py")):
-        continue
-    subprocess.run(["python3", "render_ab.py", fn], env=dict(env, ONLY=m), check=True, cwd=HERE, capture_output=True)
-    print("pdf:", fn)
+    srcs = [os.path.join(HERE, f) for f in (f"a_{m}.py", f"diff_{m}.py", "render_ab.py", COURSE + ".py") if os.path.exists(os.path.join(HERE, f))]
+    for size, label in (("a4", "A4印刷用"), ("ipad", "iPad用")):
+        fn = os.path.join(OUT, f"{course.TITLE}_{i:02d}_{re.sub(r'[ 　/]', '', name)}_{label}.pdf")
+        if os.path.exists(fn) and os.path.getmtime(fn) > max(os.path.getmtime(x) for x in srcs):
+            continue
+        subprocess.run(["python3", "render_ab.py", fn], env=dict(env, ONLY=m, SIZE=size), check=True, cwd=HERE, capture_output=True)
+        print("pdf:", fn)

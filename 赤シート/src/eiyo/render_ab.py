@@ -12,6 +12,7 @@ PAGES = json.loads(os.environ.get("PARTPAGES", "{}"))
 out_pdf = sys.argv[1]
 CIRC = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"
 FMT_NAME = {"a": "一問一答（穴埋め）", "b": "まとめノート"}[FMT]
+SIZE = os.environ.get("SIZE", "a4")          # a4＝印刷用 / ipad＝iPad（GoodNotes）用の縦長ページ・大きめの文字
 
 
 def ruby(t):
@@ -41,6 +42,10 @@ def figs_a(html):
 
 
 def render_a(amod):
+    try:                                   # 難易度（★の数）：diff_<m>.py の DIFF = {問題文: 1〜3}
+        DIFF = importlib.import_module("diff_" + amod.__name__[2:]).DIFF
+    except ModuleNotFoundError:
+        DIFF = None
     out, n, ids = [], 0, {}
     for _, items in amod.SECTIONS:
         for it in items:
@@ -63,13 +68,19 @@ def render_a(amod):
             n += 1
             def blank(m):
                 i = int(m.group(1))
-                mark = "<span class='bst'>★★★</span>" if star else ""
+                mark = "<span class='bst'>★★★</span>" if (star and DIFF is None) else ""
                 return f"<span class='blank'>{CIRC[i-1]}{mark}</span>"
             s = red(re.sub(r"［(\d+)］", blank, sent))
             ans = "<br>".join(f"<span class='an'>{CIRC[i]}</span><span class='r'>{ruby(re.sub(r'《([^《》]*)》', lambda m: ruby(m.group(1)), a))}</span>" for i, a in enumerate(answers))
             if note:
                 ans += f"<div class='expl'>{figs_a(red(note))}</div>"
-            no = f"{n}" + ("<span class='st'>★</span>" if star else "")
+            if DIFF is not None:
+                d = DIFF.get(it[1])
+                if not d:
+                    print(f"  ! 難易度なし: {amod.__name__} No.{n} {it[1][:30]}", file=sys.stderr)
+                no = f"{n}<span class='st'>{'★' * (d or 0)}</span>" + ("<span class='imp'>重要</span>" if star else "")
+            else:
+                no = f"{n}" + ("<span class='st'>★</span>" if star else "")
             out.append(f"<tr><td class='no'><span class='ck'>□□□</span><br>{no}</td><td class='q'>{s}</td><td class='a'>{ans}</td></tr>")
     return n, "<table class='ta'><colgroup><col class='no'><col class='q'><col class='a'></colgroup>" + "\n".join(out) + "</table>"
 
@@ -120,7 +131,7 @@ howto = {
 page = f"""<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <title>{course.TITLE} 赤シート {FMT_NAME}</title>
 <style>
-@page {{ size: A4; margin: 11mm 10mm 13mm 10mm;
+@page {{ size: {"168mm 240mm" if SIZE == "ipad" else "A4"}; margin: {"6mm 5mm 8mm 5mm" if SIZE == "ipad" else "11mm 10mm 13mm 10mm"};
   @bottom-center {{ content: counter(page) " / " counter(pages); font-size: 8pt; color: #555; }}
   @top-right {{ content: "{course.TITLE}　赤シート {FMT_NAME}"; font-size: 7pt; color: #777; }} }}
 @page :first {{ @top-right {{ content: none; }} }}
@@ -148,7 +159,9 @@ table.ta tr.sec td {{ background: #f3f3f3; color: {RED}; font-weight: bold; font
 table.ta tr.sec {{ break-after: avoid; }}
 td.no {{ text-align: center; font-size: 9pt; font-weight: bold; color: #222; }}
 td.no .ck {{ font-size: 7pt; color: #777; font-weight: normal; letter-spacing: -0.5px; }}
-.st {{ display: block; font-size: 8.5pt; }}
+.st {{ display: block; font-size: 8pt; letter-spacing: -1px; white-space: nowrap; }}
+.imp {{ display: inline-block; margin-top: 0.6mm; font-size: 6.2pt; line-height: 1.4; color: #fff; background: #222; padding: 0 0.6mm; border-radius: 0.6mm; font-weight: bold; white-space: nowrap; }}
+table.ta td.no {{ padding-left: 0.8mm; padding-right: 0.8mm; }}
 .blank {{ display: inline-block; min-width: 3.4em; border: 1pt solid #333; padding: 0 3px; margin: 0 2px; line-height: 1.3;
   text-align: center; font-size: 8.5pt; font-weight: bold; background: #fff; }}
 .bst {{ font-size: 6.5pt; margin-left: 2px; letter-spacing: -1px; }}
@@ -206,6 +219,8 @@ figure.fs figcaption {{ font-size: 6.8pt; color: #666; }}
 .bb td {{ border: 0.6pt solid #d9a3b8; padding: 1mm 1.5mm; vertical-align: top; }}
 .bb ul, .bb ol {{ margin: 0.5mm 0 1.5mm 5mm; padding: 0; }}
 .bb .flow {{ text-align: center; margin: 1mm 0; }}
+{"table.ta .sf img { max-height: 70mm; }" if SIZE == "ipad" else ""}
+{"section.part { padding-right: 0; }" if FMT == "a" else ""}
 </style></head><body>
 <h1>{course.TITLE}　赤シート {FMT_NAME}</h1>
 <div class="meta">全{len(summary)}パート（スライド{sum(x[2] for x in summary)}枚）　全{sum(x[3] for x in summary)}問<br>{howto}<br>
