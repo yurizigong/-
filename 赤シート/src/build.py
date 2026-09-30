@@ -69,7 +69,7 @@ td.ck {{ text-align: center; font-size: 7.5pt; line-height: 1.35; color: #777; p
 <div class="meta">
 出典：{mod.SOURCE}（スライド{mod.SLIDES}枚）　全{total}問<br>
 使い方：<span class="r">赤い文字</span>（答えと見出し）を赤シートで隠して答える。正解したら右の□に✓（3回分）。<br>
-{getattr(mod,"LEGEND","★＝スライドで太字、または先生が「重要」「よく理解しておくこと」と書いている所（最優先で覚える）")}
+スライドの赤字・青字・太字・下線と、先生が「重要」と書いた所から作成。★＝赤字かつ太字、または先生が「重要」「★」と明記した所（最優先で覚える）
 </div>
 <table>
 <colgroup><col class="no"><col class="q"><col class="a"><col class="ck"></colgroup>
