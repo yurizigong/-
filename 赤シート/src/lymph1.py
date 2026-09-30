@@ -3,7 +3,6 @@ SOURCE = "解剖生理（リンパ＿免疫 part1）.pdf"
 SLIDES = 7
 SHORT = "解剖生理学Ⅰ リンパ・免疫part1"
 OUTNAME = "解剖生理学I_リンパ免疫part1_赤シート"
-LEGEND = "スライドの赤字・青字・太字の箇所から作成。★＝赤字かつ太字（最優先で覚える）"
 
 SECTIONS = [
 ("リンパ管と組織液", [

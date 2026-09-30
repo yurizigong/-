@@ -32,16 +32,26 @@ def underlined(bb,L):
 for pi,p in enumerate(doc,1):
     out.append(f'\n===== PDF p{pi} =====')
     HL=hlines(p)
-    for b in p.get_text('dict',sort=True)['blocks']:
+    for b in p.get_text('rawdict',sort=True)['blocks']:
         for l in b.get('lines',[]):
             line=''
             for s in l['spans']:
-                t=s['text']
+                chars=s.get('chars',[])
+                t=''.join(ch['c'] for ch in chars)
                 if not t.strip(): line+=t; continue
                 fonts[s['font']]+=len(t)
                 c=cname(s['color']); bd=isbold(s)
+                # 文字単位で下線判定し、連続部分を<u>…</u>で囲む
+                parts=[]; cur=None; buf=''
+                for ch in chars:
+                    u = ch['c'].strip()!='' and underlined(ch['bbox'],HL)
+                    if cur is None: cur=u
+                    if u!=cur:
+                        parts.append((cur,buf)); buf=''; cur=u
+                    buf+=ch['c']
+                if buf: parts.append((cur,buf))
+                t=''.join(f'<u>{x}</u>' if uu and x.strip() else x for uu,x in parts)
                 if bd: t=f'**{t}**'
-                if underlined(s['bbox'],HL): t=f'<u>{t}</u>'
                 if c: t=f'[{c}:{t}]'
                 line+=t
             if line.strip(): out.append(line)
