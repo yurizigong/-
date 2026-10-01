@@ -85,7 +85,7 @@ def auto_rel(module, n):
             (box.x1 - fr.x0) / fr.width, (box.y1 - fr.y0) / fr.height]
 
 
-def render(ref, dpi=260):
+def render(ref, dpi=220):
     """ref = "fig:<module>:<n>[:x0,y0,x1,y1]"（手動範囲）または "figA:<module>:<n>"（自動トリミング） -> JPEGのパス"""
     parts = ref.split(":")
     module, n = parts[1], int(parts[2])
@@ -128,6 +128,7 @@ def render(ref, dpi=260):
     for s in spans:
         size = s["size"]
         text = _fix_radicals(s["text"])
+        text = "".join(c if (c.isspace() or font.has_glyph(ord(c))) else "＊" for c in text)   # フォントにない記号（✴など）は＊に
         horiz = abs(s["dir"][0] - 1) < 1e-3 and abs(s["dir"][1]) < 1e-3
         if horiz:
             w = font.text_length(text, fontsize=size)
@@ -147,7 +148,7 @@ def render(ref, dpi=260):
     pix = page.get_pixmap(clip=clip, dpi=dpi)
     if masks:
         pix = _redden(pix, clip, fr, masks, dpi)
-    pix.save(out, jpg_quality=78)
+    pix.save(out, jpg_quality=90)
     return out
 
 
@@ -163,11 +164,13 @@ def _redden(pix, clip, fr, masks, dpi):
         Y0 = int(max(0, (fr.y0 + my0 * fr.height - clip.y0) * sy)); Y1 = int(min(pix.height, (fr.y0 + my1 * fr.height - clip.y0) * sy))
         if X1 <= X0 or Y1 <= Y0:
             continue
-        sub = a[Y0:Y1, X0:X1].astype(np.int32)
-        lum = 0.299 * sub[..., 0] + 0.587 * sub[..., 1] + 0.114 * sub[..., 2]
-        ink = lum < 185
-        sub[ink] = (255, 51, 0)
-        a[Y0:Y1, X0:X1] = sub.astype(np.uint8)
+        sub = a[Y0:Y1, X0:X1].astype(np.float32)
+        # 赤シートは赤(R)の成分しか通さないので、範囲内の画素を「R=255・濃さは赤の濃淡」に置き換える。
+        # 白→白、黒い文字→赤(#ff3300)、薄い色の縁や色つきの文字→薄い赤。赤シートを重ねると範囲内は全部同じ明るさになり、文字の縁も消える
+        t = (0.299 * sub[..., 0] + 0.587 * sub[..., 1] + 0.114 * sub[..., 2]) / 255.0
+        t = np.clip((t - 0.15) / 0.8, 0, 1)            # 少しコントラストを上げて、赤字がはっきり見えるように
+        out = np.stack([np.full_like(t, 255), 51 + 204 * t, 255 * t], axis=-1)
+        a[Y0:Y1, X0:X1] = out.round().astype(np.uint8)
     return pymupdf.Pixmap(pymupdf.csRGB, pix.width, pix.height, a.tobytes(), 0)
 
 

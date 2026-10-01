@@ -160,7 +160,7 @@ print(f"page: {os.path.join(PUB, 'index.html')}  images: {len(files)}  total {si
 for i, (m, name) in enumerate(course.PARTS, 1):
     if m not in done:
         continue
-    srcs = [os.path.join(HERE, f) for f in (f"a_{m}.py", f"diff_{m}.py", "render_ab.py", COURSE + ".py") if os.path.exists(os.path.join(HERE, f))]
+    srcs = [os.path.join(HERE, f) for f in (f"a_{m}.py", f"diff_{m}.py", "render_ab.py", "figtool.py", COURSE + ".py") if os.path.exists(os.path.join(HERE, f))]
     for size, label in (("a4", "A4印刷用"), ("ipad", "iPad用")):
         fn = os.path.join(OUT, f"{course.TITLE}_{i:02d}_{re.sub(r'[ 　/]', '', name)}_{label}.pdf")
         if os.path.exists(fn) and os.path.getmtime(fn) > max(os.path.getmtime(x) for x in srcs):
