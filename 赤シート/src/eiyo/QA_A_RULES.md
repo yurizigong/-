@@ -27,3 +27,6 @@
 - `FORMAT=a COURSE=<course1|course2|course3> ONLY=<m> python3 render_ab.py preview/qaA_<m>.pdf` がエラーなく終わり、数ページを PNG で見て崩れがない。
 - 共有ファイル（figtool.py, render_ab.py, check_ab.py, webimg.py, <m>.py, course*.py）は編集しない。直すのは a_<m>.py だけ。
 - 報告（短く）：直した件数と中身（「No.12 答え ○○→△△（スライド5）」の形で全部）、追加・削除した問題、最終の問題数、残る疑問。
+
+## 最後に難易度ファイルも作る（解剖）
+チェックと修正が終わったら、DIFF_RULES.md に従って `diff_<m>.py`（★1〜3、問題文は a_<m>.py からプログラムで取り出してキーにする）を作り、確認コマンドで抜けがないこと・割合が範囲内であることを確かめる。報告に ★1/★2/★3 の数を書く。見本は diff_eiyo01.py など。

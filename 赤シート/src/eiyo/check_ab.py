@@ -51,7 +51,7 @@ def main(m):
     try:
         a = importlib.import_module("a_" + m)
         aitems = [(sec, it) for sec, items in a.SECTIONS for it in items if it[0] != "FIG"]
-        LIM = getattr(q, "LIMIT", 88)
+        LIM = max(getattr(q, "LIMIT", 88), 130)   # 見直しで空欄の多い問題を分けたので上限を130に
         if len(aitems) > LIM:
             probs.append(f"A: 問題数 {len(aitems)} が上限{LIM}を超えている")
         if len(aitems) < len(qitems):
@@ -65,6 +65,10 @@ def main(m):
             nums = sorted(set(int(x) for x in re.findall(r"［(\d+)］", sent)))
             if nums != list(range(1, len(answers) + 1)):
                 probs.append(f"A{n}: 空欄番号{nums}と答えの数{len(answers)}が合わない")
+            if len(answers) >= 6:
+                probs.append(f"A{n}: 空欄が{len(answers)}個で多すぎる（4個までに分ける。同じ種類の語を並べる一覧でも5個まで）")
+            elif len(answers) == 5:
+                probs.append(f"A{n}: [要確認] 空欄が5個（同じ種類の語を並べる一覧なら可。それ以外は分ける）")
             all_hidden += list(answers) + hidden_of(re.sub(r"\[\[[^\]]*\]\]", "", note))
             if not re.sub(r"\[\[[^\]]*\]\]", "", note).strip():
                 noexp += 1

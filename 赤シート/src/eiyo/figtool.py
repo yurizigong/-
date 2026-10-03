@@ -20,7 +20,7 @@ def _fix_radicals(t):
     return "".join(unicodedata.normalize("NFKC", c) if 0x2F00 <= ord(c) <= 0x2FDF else c for c in t)
 
 
-_RAD2 = str.maketrans("⻝⻑⻘⻄⻩⻲⻭⻯⻨⻫⺠⺟⻤⻣⻒", "食長青西黄亀歯竜麦斉民母鬼骨長")
+_RAD2 = str.maketrans("⻝⻑⻘⻄⻩⻲⻭⻯⻨⻫⺠⺟⻤⻣⻒⺫", "食長青西黄亀歯竜麦斉民母鬼骨長目")
 
 
 def slide_map(module):
@@ -148,7 +148,7 @@ def render(ref, dpi=220):
     pix = page.get_pixmap(clip=clip, dpi=dpi)
     if masks:
         pix = _redden(pix, clip, fr, masks, dpi)
-    pix.save(out, jpg_quality=90)
+    pix.save(out, jpg_quality=95)
     return out
 
 
