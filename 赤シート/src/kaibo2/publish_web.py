@@ -110,25 +110,35 @@ section.part {{ margin-top: 28px; }}
   padding: calc(12px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px)); cursor: zoom-out; }}
 .zoom img {{ max-width: 100%; max-height: 100%; background: #ffffff; }}
 .zoom[hidden] {{ display: none; }}
+/* 動く赤シート：本物の赤シートと同じく「赤い光だけ通す」（乗算）ので、赤い文字だけが消えて黒い文字は残る */
+.rs {{ position: fixed; z-index: 15; left: 50vw; top: 28vh; width: 46vw; height: 34vh; min-width: 120px; min-height: 70px;
+  background: #ff0000; mix-blend-mode: multiply; border-radius: 10px; touch-action: none; cursor: grab; }}
+.rs[hidden] {{ display: none; }}
+.rs-bar {{ display: flex; align-items: center; justify-content: space-between; gap: 6px; height: 30px; white-space: nowrap; overflow: hidden; padding: 0 4px 0 10px;
+  font-size: 12px; font-weight: 700; color: #000000; border-bottom: 1px dashed #000000; }}
+.rs-bar button {{ font: inherit; font-size: 15px; color: #000000; background: none; border: none; padding: 4px 8px; cursor: pointer; }}
+.rs-grip {{ position: absolute; right: 0; bottom: 0; width: 30px; height: 30px; cursor: nwse-resize; border-bottom-right-radius: 10px;
+  background: linear-gradient(135deg, transparent 52%, #000000 52%, #000000 60%, transparent 60%, transparent 72%, #000000 72%, #000000 80%, transparent 80%); }}
 @media print {{
   .bar button, ol.toc, .lead .web {{ display: none; }}
   .bar {{ position: static; border: none; }}
   .wrap {{ max-width: none; padding: 0; }}
   .hide .r {{ background: transparent; }}
-  .zoom {{ display: none; }}
+  .zoom, .rs {{ display: none; }}
 }}
 </style>
 <div class="wrap" id="top">
-<div class="bar"><h1>{TITLE}</h1><button type="button" id="sheet" aria-pressed="false">赤シートモード</button></div>
+<div class="bar"><h1>{TITLE}</h1><button type="button" id="sheet" aria-pressed="false">赤シートモード</button><button type="button" id="rsbtn" aria-pressed="false">動く赤シート</button></div>
 <div class="lead">
 <p>文中の空欄（①②…）に入る語を答え、右側の<span class="r">赤い文字</span>を赤シートで隠して使います。{star}。</p>
 <p>{getattr(course, "BASIS", "")}公開済み {len(done)}/{len(course.PARTS)}パート・{total}問。</p>
-<p class="web">スマホで見るときは「赤シートモード」で赤字を隠せます（隠れた語をタップするとその語だけ表示）。図はタップすると大きく表示されます。印刷はチャットで送ったPDFを使うと、A4できれいに印刷できます（必ずカラー印刷）。</p>
+<p class="web">スマホで見るときは「赤シートモード」で赤字を隠せます（隠れた語をタップするとその語だけ表示）。「動く赤シート」を押すと、本物の赤シートのように赤い文字だけが消える赤いシートが出ます（ドラッグで移動、右下の角で大きさを変える、✕で閉じる）。図はタップすると大きく表示されます。印刷はチャットで送ったPDFを使うと、A4できれいに印刷できます（必ずカラー印刷）。</p>
 </div>
 <ol class="toc">{''.join(rows)}</ol>
 {''.join(body)}
 </div>
 <div class="zoom" id="zoom" hidden><img alt="拡大した図"></div>
+<div class="rs" id="rs" hidden><div class="rs-bar"><span>赤シート</span><button type="button" id="rsx" aria-label="赤シートを閉じる">✕</button></div><div class="rs-grip" id="rsg"></div></div>
 <script>
 (function () {{
   var root = document.querySelector('.wrap'), btn = document.getElementById('sheet');
@@ -147,6 +157,33 @@ section.part {{ margin-top: 28px; }}
   }});
   zoom.addEventListener('click', function () {{ zoom.hidden = true; zimg.removeAttribute('src'); }});
   document.addEventListener('keydown', function (e) {{ if (e.key === 'Escape') zoom.hidden = true; }});
+  // 動く赤シート：ドラッグで動かし、右下の角で大きさを変える。位置と大きさはこの端末に覚えておく
+  var rs = document.getElementById('rs'), rsbtn = document.getElementById('rsbtn'), grip = document.getElementById('rsg');
+  function rsShow(on) {{ rs.hidden = !on; rsbtn.setAttribute('aria-pressed', on ? 'true' : 'false'); }}
+  function rsSave() {{ try {{ localStorage.setItem('rsbox', JSON.stringify([rs.style.left, rs.style.top, rs.style.width, rs.style.height])); }} catch (e) {{}} }}
+  try {{ var b = JSON.parse(localStorage.getItem('rsbox') || 'null'); if (b) {{ rs.style.left = b[0]; rs.style.top = b[1]; rs.style.width = b[2]; rs.style.height = b[3]; }} }} catch (e) {{}}
+  rsbtn.addEventListener('click', function () {{ rsShow(rs.hidden); }});
+  document.getElementById('rsx').addEventListener('click', function (e) {{ e.stopPropagation(); rsShow(false); }});
+  var drag = null;
+  rs.addEventListener('pointerdown', function (e) {{
+    if (e.target.closest('#rsx')) return;
+    var r = rs.getBoundingClientRect();
+    drag = {{ mode: e.target === grip ? 'size' : 'move', x: e.clientX, y: e.clientY, l: r.left, t: r.top, w: r.width, h: r.height }};
+    rs.setPointerCapture(e.pointerId); e.preventDefault();
+  }});
+  rs.addEventListener('pointermove', function (e) {{
+    if (!drag) return;
+    var dx = e.clientX - drag.x, dy = e.clientY - drag.y, vw = window.innerWidth, vh = window.innerHeight;
+    if (drag.mode === 'move') {{
+      rs.style.left = Math.min(Math.max(drag.l + dx, 40 - drag.w), vw - 40) + 'px';
+      rs.style.top = Math.min(Math.max(drag.t + dy, 0), vh - 40) + 'px';
+    }} else {{
+      rs.style.width = Math.max(120, drag.w + dx) + 'px';
+      rs.style.height = Math.max(70, drag.h + dy) + 'px';
+    }}
+  }});
+  function endDrag() {{ if (drag) {{ drag = null; rsSave(); }} }}
+  rs.addEventListener('pointerup', endDrag); rs.addEventListener('pointercancel', endDrag);
 }})();
 </script>
 """
