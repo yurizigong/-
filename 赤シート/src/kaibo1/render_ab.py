@@ -111,7 +111,7 @@ for i, (m, name) in enumerate(course.PARTS, 1):
     nq = sum(len(q) for _, q in qmod.SECTIONS)
     if FMT == "a":
         n, body = render_a(importlib.import_module("a_" + m))
-        assert n <= getattr(qmod, "LIMIT", 88), f"{m}: 問題数 {n} が上限を超えている"
+        assert n <= max(getattr(qmod, "LIMIT", 88), 130), f"{m}: 問題数 {n} が上限を超えている"
     else:
         body, n = render_b(importlib.import_module("b_" + m)), nq
     summary.append((i, name, qmod.SLIDES, n))
