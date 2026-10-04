@@ -97,7 +97,7 @@ def render(ref, dpi=220):
     masks = []
     if len(parts) > 4 and parts[4].startswith("R="):
         masks = [[float(v) for v in m.split(",")] for m in parts[4][2:].split("/") if m]
-    key = f"{module}_{n}_" + "_".join(f"{v:.3f}" for v in rel)
+    key = f"{module}_{n}_" + "_".join(f"{v:.3f}" for v in rel) + "_h"
     if masks:
         import hashlib
         key += "_R" + hashlib.md5(parts[4].encode()).hexdigest()[:8]
@@ -146,10 +146,44 @@ def render(ref, dpi=220):
         except Exception:
             pass
     pix = page.get_pixmap(clip=clip, dpi=dpi)
+    pix = _hide_on_color(pix, clip, spans)
     if masks:
         pix = _redden(pix, clip, fr, masks, dpi)
     pix.save(out, jpg_quality=95)
     return out
+
+
+def _to_red(sub):
+    """画素を「R=255・濃さは赤の濃淡」に置き換える（赤シートを重ねると全部同じ明るさになって消える）"""
+    import numpy as np
+    t = (0.299 * sub[..., 0] + 0.587 * sub[..., 1] + 0.114 * sub[..., 2]) / 255.0
+    t = np.clip((t - 0.15) / 0.8, 0, 1)
+    return np.stack([np.full_like(t, 255), 51 + 204 * t, 255 * t], axis=-1)
+
+
+def _hide_on_color(pix, clip, spans, th=225, pad=3):
+    """赤くした文字が色の付いた背景（青・緑・写真など）の上にあると、赤シートを通しても文字が浮かんで読める。
+    文字の範囲の背景の赤(R)が暗いときは、その範囲を赤の濃淡に塗り替えて、赤シートで消えるようにする"""
+    import numpy as np
+    if pix.alpha or pix.n != 3:
+        pix = pymupdf.Pixmap(pymupdf.csRGB, pix, 0)
+    a = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, 3).copy()
+    sx, sy = pix.width / clip.width, pix.height / clip.height
+    changed = False
+    for s in spans:
+        r = pymupdf.Rect(s["bbox"]) & clip
+        if r.is_empty:
+            continue
+        X0 = int(max(0, (r.x0 - clip.x0) * sx - pad)); X1 = int(min(pix.width, (r.x1 - clip.x0) * sx + pad))
+        Y0 = int(max(0, (r.y0 - clip.y0) * sy - pad)); Y1 = int(min(pix.height, (r.y1 - clip.y0) * sy + pad))
+        if X1 - X0 < 4 or Y1 - Y0 < 4:
+            continue
+        if np.median(a[Y0:Y1, X0:X1, 0]) < th:
+            a[Y0:Y1, X0:X1] = _to_red(a[Y0:Y1, X0:X1].astype(np.float32)).round().astype(np.uint8)
+            changed = True
+    if not changed:
+        return pix
+    return pymupdf.Pixmap(pymupdf.csRGB, pix.width, pix.height, a.tobytes(), 0)
 
 
 def _redden(pix, clip, fr, masks, dpi):
