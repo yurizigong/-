@@ -41,12 +41,30 @@ def figs_a(html):
     return re.sub(r"\[\[(fig)\|((?:figA?|web):[^|\]]+)(?:\|([^\]]*))?\]\]", rep, html)
 
 
+TAGCLS = {t: "tgp" for t in ("プリント穴埋め", "プリント選択", "プリント記述", "プリント赤字", "プリント青字", "プリント太字", "プリント下線", "プリント重要", "小テスト")}
+TAGCLS["資料外"] = "tgx"
+
+
 def render_a(amod):
     try:                                   # 難易度（★の数）：diff_<m>.py の DIFF = {問題文: 1〜3}
         DIFF = importlib.import_module("diff_" + amod.__name__[2:]).DIFF
     except ModuleNotFoundError:
         DIFF = None
-    out, n, ids = [], 0, {}
+    try:                                   # 出典の印：src_<m>.py の SRC = {問題文: (["タグ",...], "参照")}
+        SRC = importlib.import_module("src_" + amod.__name__[2:]).SRC
+    except ModuleNotFoundError:
+        SRC = None
+    try:                                   # 出やすさ：freq_<m>.py の FREQ = {問題文: 0/1/2}
+        FREQ = importlib.import_module("freq_" + amod.__name__[2:]).FREQ
+    except ModuleNotFoundError:
+        FREQ = None
+    try:                                   # スライドの強調：emph_<m>.py の EMPH = {問題文: ["赤字","青字","太字","下線"]}
+        EMPH = importlib.import_module("emph_" + amod.__name__[2:]).EMPH
+    except ModuleNotFoundError:
+        EMPH = None
+    PRIO = os.environ.get("PRIORITY") in ("1", "2")   # 1：「重要」か★★以上だけ／2：「重要」か★★★だけ
+    PMIN = 2 if os.environ.get("PRIORITY") == "2" else 1
+    out, n, ids, shown = [], 0, {}, 0
     for _, items in amod.SECTIONS:
         for it in items:
             if it[0] == "FIG":
@@ -81,8 +99,30 @@ def render_a(amod):
                 no = f"{n}<span class='st'>{'★' * (d or 0)}</span>" + ("<span class='imp'>重要</span>" if star else "")
             else:
                 no = f"{n}" + ("<span class='st'>★</span>" if star else "")
-            out.append(f"<tr><td class='no'><span class='ck'>□□□</span><br>{no}</td><td class='q'>{s}</td><td class='a'>{ans}</td></tr>")
-    return n, "<table class='ta'><colgroup><col class='no'><col class='q'><col class='a'></colgroup>" + "\n".join(out) + "</table>"
+            mk = ""
+            if SRC is not None:
+                tags, ref = SRC.get(it[1], ([], ""))
+                if it[1] not in SRC:
+                    print(f"  ! 出典なし: {amod.__name__} No.{n} {it[1][:30]}", file=sys.stderr)
+                badge = "".join(f"<span class='tg {TAGCLS.get(t, 'tgs')}'>{t}</span>" for t in tags)
+                s += f"<div class='srcl'>{badge}<span class='ref'>参照：{ref}</span></div>" if (tags or ref) else ""
+                mk = " class='mk'" if any(t != "資料外" for t in tags) else ""
+            if FREQ is not None:
+                fq = FREQ.get(it[1], 0)
+                if it[1] not in FREQ:
+                    print(f"  ! 出やすさなし: {amod.__name__} No.{n} {it[1][:30]}", file=sys.stderr)
+                no = f"{n}<span class='st'>{'★' * (fq + 1)}</span>" + ("<span class='imp'>重要</span>" if star else "")   # ★＝出やすさ（★★★最頻出・★★頻出・★その他）
+                if EMPH is not None and EMPH.get(it[1]):
+                    s += "<div class='srcl'>" + "".join(f"<span class='tg tgs'>{t}</span>" for t in EMPH[it[1]]) + "<span class='ref'>（スライドで）</span></div>"
+                if star or fq:
+                    mk = (mk[:-1] + " pr'") if mk else " class='pr'"
+                if PRIO and not (star or fq >= PMIN):
+                    continue
+            shown += 1
+            out.append(f"<tr{mk}><td class='no'><span class='ck'>□□□</span><br>{no}</td><td class='q'>{s}</td><td class='a'>{ans}</td></tr>")
+    if PRIO:                               # 問題が残らなかった見出しは消す
+        out = [r for i, r in enumerate(out) if not (r.startswith("<tr class='sec'>") and (i + 1 == len(out) or out[i + 1].startswith("<tr class='sec'>")))]
+    return (shown if PRIO else n), "<table class='ta'><colgroup><col class='no'><col class='q'><col class='a'></colgroup>" + "\n".join(out) + "</table>"
 
 
 def figs_b(html):
@@ -166,6 +206,16 @@ table.ta td.no {{ padding-left: 0.8mm; padding-right: 0.8mm; }}
   text-align: center; font-size: 8.5pt; font-weight: bold; background: #fff; }}
 .bst {{ font-size: 6.5pt; margin-left: 2px; letter-spacing: -1px; }}
 .an {{ font-weight: bold; margin-right: 2px; }}
+.frq {{ display: inline-block; margin-top: 0.6mm; font-size: 6.2pt; line-height: 1.4; padding: 0 0.6mm; border-radius: 0.6mm; font-weight: bold; white-space: nowrap; }}
+.f2 {{ color: #fff; background: #1a3a8f; }}
+.f1 {{ color: #1a3a8f; background: #fff; border: 0.8pt solid #1a3a8f; }}
+.srcl {{ margin-top: 1.2mm; font-size: 6.6pt; line-height: 1.9; color: #222; }}
+.tg {{ display: inline-block; margin: 0 0.8mm 0.4mm 0; padding: 0 1mm; border-radius: 0.6mm; font-weight: bold; white-space: nowrap; line-height: 1.5; }}
+.tgp {{ background: #111; color: #fff; border: 0.6pt solid #111; }}
+.tgs {{ background: #fff; color: #111; border: 0.8pt solid #111; }}
+.tgx {{ background: #fff; color: #555; border: 0.8pt dashed #777; font-weight: normal; }}
+.ref {{ color: #333; white-space: normal; }}
+table.ta tr.mk td.q {{ box-shadow: inset 1.6mm 0 0 #111; padding-left: 3.4mm; }}
 .expl {{ margin-top: 1mm; font-size: 7.8pt; color: #333; line-height: 1.5; border-top: 0.4pt dashed #bbb; padding-top: 0.8mm; }}
 table.ta tr.fig td {{ text-align: center; border-bottom: 0.5pt dotted #999; padding: 2mm; background: #fafafa; }}
 table.ta tr.fig img {{ max-width: 78%; max-height: 62mm; border: 0.5pt solid #ccc; }}
@@ -224,7 +274,7 @@ figure.fs figcaption {{ font-size: 6.8pt; color: #666; }}
 </style></head><body>
 <h1>{course.TITLE}　赤シート {FMT_NAME}</h1>
 <div class="meta">全{len(summary)}パート（スライド{sum(x[2] for x in summary)}枚）　全{sum(x[3] for x in summary)}問<br>{howto}<br>
-{getattr(course, "BASIS", "スライドの赤字・青字・太字・下線と、先生が「重要」と書いた所から作成。")}※必ずカラーで印刷する（白黒だと答えが隠れない）</div>
+{(course.SRC_NOTE + '<br>') if getattr(course, 'SRC_NOTE', '') else ''}{getattr(course, "BASIS", "スライドの赤字・青字・太字・下線と、先生が「重要」と書いた所から作成。")}※必ずカラーで印刷する（白黒だと答えが隠れない）</div>
 <table class="toc">{toc}</table>
 {''.join(parts)}
 </body></html>"""

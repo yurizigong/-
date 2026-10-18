@@ -119,6 +119,12 @@ section.part {{ margin-top: 28px; }}
 .rs-bar button {{ font: inherit; font-size: 15px; color: #000000; background: none; border: none; padding: 4px 8px; cursor: pointer; }}
 .rs-grip {{ position: absolute; right: 0; bottom: 0; width: 30px; height: 30px; cursor: nwse-resize; border-bottom-right-radius: 10px;
   background: linear-gradient(135deg, transparent 52%, #000000 52%, #000000 60%, transparent 60%, transparent 72%, #000000 72%, #000000 80%, transparent 80%); }}
+/* 出やすい・重要な問題だけ表示 */
+.only-pr table.ta tr:not(.pr):not(.sec) {{ display: none; }}
+.only-pr table.ta tr.sec.noprio {{ display: none; }}
+/* 印のある問題だけ表示 */
+.only-mk table.ta tr:not(.mk):not(.sec) {{ display: none; }}
+.only-mk table.ta tr.sec.empty {{ display: none; }}
 @media print {{
   .bar button, ol.toc, .lead .web {{ display: none; }}
   .bar {{ position: static; border: none; }}
@@ -128,10 +134,10 @@ section.part {{ margin-top: 28px; }}
 }}
 </style>
 <div class="wrap" id="top">
-<div class="bar"><h1>{TITLE}</h1><button type="button" id="sheet" aria-pressed="false">赤シートモード</button><button type="button" id="rsbtn" aria-pressed="false">動く赤シート</button></div>
+<div class="bar"><h1>{TITLE}</h1><button type="button" id="sheet" aria-pressed="false">赤シートモード</button><button type="button" id="rsbtn" aria-pressed="false">動く赤シート</button><button type="button" id="mkbtn" aria-pressed="false" hidden>印のある問題だけ</button><button type="button" id="prbtn" aria-pressed="false" hidden>出やすい・重要な問題だけ</button></div>
 <div class="lead">
 <p>文中の空欄（①②…）に入る語を答え、右側の<span class="r">赤い文字</span>を赤シートで隠して使います。{star}。</p>
-<p>{getattr(course, "BASIS", "")}公開済み {len(done)}/{len(course.PARTS)}パート・{total}問。</p>
+{('<p>' + course.SRC_NOTE + '</p>') if getattr(course, 'SRC_NOTE', '') else ''}<p>{getattr(course, "BASIS", "")}公開済み {len(done)}/{len(course.PARTS)}パート・{total}問。</p>
 <p class="web">スマホで見るときは「赤シートモード」で赤字を隠せます（隠れた語をタップするとその語だけ表示）。「動く赤シート」を押すと、本物の赤シートのように赤い文字だけが消える赤いシートが出ます（ドラッグで移動、右下の角で大きさを変える、✕で閉じる）。図はタップすると大きく表示されます。印刷はチャットで送ったPDFを使うと、A4できれいに印刷できます（必ずカラー印刷）。</p>
 </div>
 <ol class="toc">{''.join(rows)}</ol>
@@ -155,6 +161,38 @@ section.part {{ margin-top: 28px; }}
     var r = e.target.closest('.r');
     if (r && root.classList.contains('hide')) r.classList.toggle('show');
   }});
+  // 印のある問題だけ表示（見出しの下に印つきの問題がない見出しも隠す）
+  var mkbtn = document.getElementById('mkbtn');
+  if (document.querySelector('tr.mk')) {{
+    mkbtn.hidden = false;
+    document.querySelectorAll('table.ta tr.sec').forEach(function (sec) {{
+      var n = sec.nextElementSibling, has = false;
+      while (n && !n.classList.contains('sec')) {{ if (n.classList.contains('mk')) has = true; n = n.nextElementSibling; }}
+      if (!has) sec.classList.add('empty');
+    }});
+    var mkSet = function (on) {{ root.classList.toggle('only-mk', on); mkbtn.setAttribute('aria-pressed', on ? 'true' : 'false'); }};
+    try {{ mkSet(localStorage.getItem('onlymk') === '1'); }} catch (e) {{}}
+    mkbtn.addEventListener('click', function () {{
+      var on = !root.classList.contains('only-mk'); mkSet(on);
+      try {{ localStorage.setItem('onlymk', on ? '1' : '0'); }} catch (e) {{}}
+    }});
+  }}
+  // 出やすい・重要な問題だけ表示（頻出・最頻出・重要の問題）
+  var prbtn = document.getElementById('prbtn');
+  if (document.querySelector('tr.pr')) {{
+    prbtn.hidden = false;
+    document.querySelectorAll('table.ta tr.sec').forEach(function (sec) {{
+      var n = sec.nextElementSibling, has = false;
+      while (n && !n.classList.contains('sec')) {{ if (n.classList.contains('pr')) has = true; n = n.nextElementSibling; }}
+      if (!has) sec.classList.add('noprio');
+    }});
+    var prSet = function (on) {{ root.classList.toggle('only-pr', on); prbtn.setAttribute('aria-pressed', on ? 'true' : 'false'); }};
+    try {{ prSet(localStorage.getItem('onlypr') === '1'); }} catch (e) {{}}
+    prbtn.addEventListener('click', function () {{
+      var on = !root.classList.contains('only-pr'); prSet(on);
+      try {{ localStorage.setItem('onlypr', on ? '1' : '0'); }} catch (e) {{}}
+    }});
+  }}
   zoom.addEventListener('click', function () {{ zoom.hidden = true; zimg.removeAttribute('src'); }});
   document.addEventListener('keydown', function (e) {{ if (e.key === 'Escape') zoom.hidden = true; }});
   // 動く赤シート：ドラッグで動かし、右下の角で大きさを変える。位置と大きさはこの端末に覚えておく
@@ -197,7 +235,7 @@ print(f"page: {os.path.join(PUB, 'index.html')}  images: {len(files)}  total {si
 for i, (m, name) in enumerate(course.PARTS, 1):
     if m not in done:
         continue
-    srcs = [os.path.join(HERE, f) for f in (f"a_{m}.py", f"diff_{m}.py", "render_ab.py", "figtool.py", COURSE + ".py") if os.path.exists(os.path.join(HERE, f))]
+    srcs = [os.path.join(HERE, f) for f in (f"a_{m}.py", f"diff_{m}.py", f"src_{m}.py", f"freq_{m}.py", "render_ab.py", "figtool.py", COURSE + ".py") if os.path.exists(os.path.join(HERE, f))]
     for size, label in (("a4", "A4印刷用"), ("ipad", "iPad用")):
         fn = os.path.join(OUT, f"{course.TITLE}_{i:02d}_{re.sub(r'[ 　/]', '', name)}_{label}.pdf")
         if os.path.exists(fn) and os.path.getmtime(fn) > max(os.path.getmtime(x) for x in srcs):
