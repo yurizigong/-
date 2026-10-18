@@ -73,6 +73,10 @@ def render_a(amod):
             if len(it) > 4:
                 ids[it[4]] = n
     resolve = lambda t: re.sub(r"No\.@([A-Za-z]+)", lambda m: f"No.{ids[m.group(1)]}", t)
+    NAMEREF = getattr(course, "NAMEREF", False)      # 「No.12の①」を答えの名称に置き換える
+    if NAMEREF:
+        import nameref
+        ninfo, nfix = nameref.build_info(amod), nameref.load_fixes(amod.__name__[2:])
     n = 0
     for title, items in amod.SECTIONS:
         out.append(f"<tr class='sec'><td colspan='3'>{title}</td></tr>")
@@ -82,8 +86,12 @@ def render_a(amod):
                 out.append(f"<tr class='fig'><td colspan='3'><img src='file://{figtool.render(it[1])}'>{cap}</td></tr>")
                 continue
             star, sent, answers, note = it[:4]
-            sent, note = resolve(sent), resolve(note)
             n += 1
+            if NAMEREF:
+                sent = nameref.full(sent, n, ninfo, nfix, "", amod.__name__[2:])
+                note = nameref.full(note, n, ninfo, nfix, "n", amod.__name__[2:])
+            else:
+                sent, note = resolve(sent), resolve(note)
             def blank(m):
                 i = int(m.group(1))
                 mark = "<span class='bst'>★★★</span>" if (star and DIFF is None) else ""
@@ -112,7 +120,7 @@ def render_a(amod):
                 if it[1] not in FREQ:
                     print(f"  ! 出やすさなし: {amod.__name__} No.{n} {it[1][:30]}", file=sys.stderr)
                 no = f"{n}<span class='st'>{'★' * (fq + 1)}</span>" + ("<span class='imp'>重要</span>" if star else "")   # ★＝出やすさ（★★★最頻出・★★頻出・★その他）
-                if EMPH is not None and EMPH.get(it[1]):
+                if EMPH is not None and getattr(course, "SHOW_EMPH", True) and EMPH.get(it[1]):
                     s += "<div class='srcl'>" + "".join(f"<span class='tg tgs'>{t}</span>" for t in EMPH[it[1]]) + "<span class='ref'>（スライドで）</span></div>"
                 if star or fq:
                     mk = (mk[:-1] + " pr'") if mk else " class='pr'"
@@ -167,6 +175,8 @@ howto = {
  "a": "使い方：文中の空欄（①②…）に入る語を答える。右側の<span class='r'>赤い文字</span>（答え・見出し）を赤シートで隠す。正解したら□に✓（3回分）。<br>" + getattr(course, "STAR_NOTE", "空欄の★★★・番号の★＝赤字かつ太字、または先生が「重要」「★」と明記した所（最優先で覚える）"),
  "b": "使い方：本文・表の<span class='r'>赤い文字</span>（重要語句・見出し）を赤シートで隠して読み、隠れた語句を答えながら覚える。<br>各まとめの右上の「問題No.」は、一問一答版の問題番号に対応（内容は同じ）",
 }[FMT]
+if FMT == "a" and os.environ.get("PRIORITY") in ("1", "2") and getattr(course, "FREQ_PRIO_NOTE", ""):
+    howto += "<br>" + course.FREQ_PRIO_NOTE
 
 page = f"""<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <title>{course.TITLE} 赤シート {FMT_NAME}</title>
